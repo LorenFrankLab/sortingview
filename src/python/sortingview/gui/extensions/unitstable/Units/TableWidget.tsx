@@ -21,6 +21,8 @@ export interface Column {
     calculating?: boolean
 }
 
+type Modifier = null | 'shift' | 'ctrl'
+
 const HeaderRow: FunctionComponent<{
     columns: Column[],
     onColumnClick: (column: Column) => void
@@ -95,13 +97,17 @@ const HeaderRow: FunctionComponent<{
     )
 }
 
-const RowCheckbox = React.memo((props: {rowId: string, selected: boolean, onClick: (rowId: string) => void, isDeselectAll?: boolean, isDisabled?: boolean}) => {
+const RowCheckbox = React.memo((props: {rowId: string, selected: boolean, onClick: (m: Modifier) => void, isDeselectAll?: boolean, isDisabled?: boolean}) => {
     const { rowId, selected, onClick, isDeselectAll, isDisabled } = props
+    const handleClick: React.MouseEventHandler<HTMLButtonElement> = useCallback((evt) => {
+        const modifier = evt.ctrlKey ? 'ctrl' : evt.shiftKey ? 'shift' : null
+        onClick(modifier)
+    }, [onClick])
     return (
         <Checkbox
             checked={selected}
             indeterminate={isDeselectAll ? true : false}
-            onClick={() => onClick(rowId)}
+            onClick={handleClick}
             style={{
                 padding: 1
             }}
@@ -144,12 +150,78 @@ const TableWidget: FunctionComponent<Props> = (props) => {
         }
     }, [setSortFieldOrder, sortFieldOrder, defaultSortColumnName])
 
+    const toggleAllSelectedRowIds = useCallback(
+        (rowCount: number) => {
+            const invertedResult = [...Array(rowCount + 1).keys()]
+                                .filter(r => !selectedRowIds.includes(r.toString()))
+                                .map((rowId) => rowId.toString())
+            onSelectedRowIdsChanged(invertedResult)
+        },
+        [selectedRowIds, onSelectedRowIdsChanged]
+    )
+
+    const toggleSelectedRegion = useCallback(
+        (sortedRows: Row[], clickedRowId: string) => {
+            // We don't know the IDs of each row, only that they're in
+            // sorted order.
+            // We want to toggle the selection status of the row that was
+            // clicked, as well as the contiguous block with the same status
+            // on either side.
+            // To do this without repeatedly iterating through the list of
+            // rows, we'll maintain the current 'run' of units, restarting it
+            // every time the selection status ('polarity') changes, until we've
+            // found the row with the clicked ID. At that point, we'll flip the
+            // selection status of the current run when it ends.
+
+            // Make a Set: closer-to-constant-time lookups of selection status
+            const selections: Set<string> = new Set(selectedRowIds)
+            let run: string[] = []
+            let runPolarity: boolean = selections.has(sortedRows[0].rowId)
+            let pastClickedRow: boolean = false
+            for (const r of sortedRows) {
+                if (selections.has(r.rowId) !== runPolarity) {
+                    // We don't care what else is in the list if we've
+                    // reached the end of the run that includes the
+                    // clicked row.
+                    if (pastClickedRow) break
+
+                    // if we aren't past the clicked row when the run ended,
+                    // then the current run didn't contain the clicked row, so
+                    // it wasn't the right run. Flip polarity & start a new one.
+                    runPolarity = !runPolarity
+                    run = []
+                }
+                run.push(r.rowId)
+                pastClickedRow = pastClickedRow || r.rowId === clickedRowId
+            }
+            // Done finding the run; now we need to update the selection.
+            // - If runPolarity is true, the run has selected items to deselect.
+            // - Otherwise they're to be added to the selection set.
+            onSelectedRowIdsChanged(runPolarity
+                ? selectedRowIds.filter(x => !run.includes(x))
+                : [...selectedRowIds, ...run])
+        },
+        [selectedRowIds, onSelectedRowIdsChanged]
+    )
+
     const toggleSelectedRowId = useCallback(
         (rowId: string) => {
             const newSelectedRowIds = selectedRowIds.includes(rowId) ? selectedRowIds.filter(x => (x !== rowId)) : [...selectedRowIds, rowId]
             onSelectedRowIdsChanged(newSelectedRowIds)
         },
         [selectedRowIds, onSelectedRowIdsChanged]
+    )
+
+    const handleRowClick = useCallback(
+        (sortedRows: Row[], rowId: string, modifier: Modifier) => {
+            if(!modifier) toggleSelectedRowId(rowId)
+            if (modifier === 'shift') {
+                toggleSelectedRegion(sortedRows, rowId)
+            }
+            if (modifier === 'ctrl') {
+                toggleAllSelectedRowIds(sortedRows.length)
+            }
+        }, [toggleSelectedRowId, toggleSelectedRegion, toggleAllSelectedRowIds]
     )
 
     const sortedRows = [...rows]
@@ -223,7 +295,8 @@ const TableWidget: FunctionComponent<Props> = (props) => {
                                         <RowCheckbox
                                             rowId={row.rowId}
                                             selected={selected}
-                                            onClick = {() => toggleSelectedRowId(row.rowId)}
+                                            // onClick = {() => toggleSelectedRowId(row.rowId)}
+                                            onClick = {(m: Modifier) => handleRowClick(sortedRows, row.rowId, m)}
                                             isDisabled={selectionDisabled}
                                         />
                                     </TableCell>
