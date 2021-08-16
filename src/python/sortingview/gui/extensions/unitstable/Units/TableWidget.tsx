@@ -100,7 +100,8 @@ const HeaderRow: FunctionComponent<{
 const RowCheckbox = React.memo((props: {rowId: string, selected: boolean, onClick: (m: Modifier) => void, isDeselectAll?: boolean, isDisabled?: boolean}) => {
     const { rowId, selected, onClick, isDeselectAll, isDisabled } = props
     const handleClick: React.MouseEventHandler<HTMLButtonElement> = useCallback((evt) => {
-        const modifier = evt.ctrlKey ? 'ctrl' : evt.shiftKey ? 'shift' : null
+        // const modifier = evt.ctrlKey ? 'ctrl' : evt.shiftKey ? 'shift' : null
+        const modifier = evt.shiftKey ? 'shift' : null
         onClick(modifier)
     }, [onClick])
     return (
@@ -150,15 +151,15 @@ const TableWidget: FunctionComponent<Props> = (props) => {
         }
     }, [setSortFieldOrder, sortFieldOrder, defaultSortColumnName])
 
-    const toggleAllSelectedRowIds = useCallback(
-        (rowCount: number) => {
-            const invertedResult = [...Array(rowCount + 1).keys()]
-                                .filter(r => !selectedRowIds.includes(r.toString()))
-                                .map((rowId) => rowId.toString())
-            onSelectedRowIdsChanged(invertedResult)
-        },
-        [selectedRowIds, onSelectedRowIdsChanged]
-    )
+    // const toggleAllSelectedRowIds = useCallback(
+    //     (rowCount: number) => {
+    //         const invertedResult = [...Array(rowCount + 1).keys()]
+    //                             .filter(r => !selectedRowIds.includes(r.toString()))
+    //                             .map((rowId) => rowId.toString())
+    //         onSelectedRowIdsChanged(invertedResult)
+    //     },
+    //     [selectedRowIds, onSelectedRowIdsChanged]
+    // )
 
     const toggleSelectedRegion = useCallback(
         (sortedRows: Row[], clickedRowId: string) => {
@@ -218,10 +219,10 @@ const TableWidget: FunctionComponent<Props> = (props) => {
             if (modifier === 'shift') {
                 toggleSelectedRegion(sortedRows, rowId)
             }
-            if (modifier === 'ctrl') {
-                toggleAllSelectedRowIds(sortedRows.length)
-            }
-        }, [toggleSelectedRowId, toggleSelectedRegion, toggleAllSelectedRowIds]
+            // if (modifier === 'ctrl') {
+            //     toggleAllSelectedRowIds(sortedRows.length)
+            // }
+        }, [toggleSelectedRowId, toggleSelectedRegion]//, toggleAllSelectedRowIds]
     )
 
     const sortedRows = [...rows]
